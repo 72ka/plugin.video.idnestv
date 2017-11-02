@@ -21,6 +21,7 @@ home = __settings__.getAddonInfo('path')
 icon = xbmc.translatePath( os.path.join( home, 'icon.png' ) )
 nexticon = xbmc.translatePath( os.path.join( home, 'nextpage.png' ) )
 fanart = xbmc.translatePath( os.path.join( home, 'fanart.jpg' ) )
+defaultprotocol = 'http:'
 
 #Nacteni informaci o doplnku
 __addon__      = xbmcaddon.Addon()
@@ -36,6 +37,14 @@ def log(msg):
 def load(url):
     r = requests.get(url)
     return r.text
+
+def normalize_url(url):
+    if not url.startswith('http://') and not url.startswith('https://'):
+        if url.startswith('//'):
+            return defaultprotocol + url
+        else:
+            return defaultprotocol + '//' + url
+    return url
 
 def OBSAH():
     addDir('Nejnovější epizody','http://video.idnes.cz/nejnovejsi.aspx',2,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Nejnovější")
@@ -75,7 +84,7 @@ def INDEX(url,page):
             title = title[beg:]
             title = title.strip()
             video_name = title
-            thumb = "http:" + urlel.find("img")['src']                       
+            thumb = normalize_url(urlel.find("img")['src'])
             addDir(title,url,4,thumb,1,desc)
 
     try:
@@ -104,14 +113,14 @@ def VIDEOLINK(url,name):
 	    		xmlurl = item['content'].replace("http://video.idnes.cz/embed.aspx?idvideo=","http://servix.idnes.cz/media/video.aspx?idvideo=")
 			configxml = load(xmlurl).encode('utf-8')
     			configxml = bs4.BeautifulSoup(configxml)
-			thumb = configxml.find("imageprev").getText()
+			thumb = normalize_url(configxml.find("imageprev").getText())
 			desc = configxml.find("title").getText()
 			linkvideo = configxml.find("linkvideo")
 			server = linkvideo.find("server").getText()
 			for video in linkvideo.findAll("file"):
 				name = "Kvalita: " + video['quality']
-				url = server + video.getText()
-				addLink(name,video_name, url,"http:"+thumb,desc)
+				url = normalize_url(server + "/" + video.getText())
+				addLink(name,video_name, url,normalize_url(thumb),desc)
 
             
 
