@@ -12,7 +12,7 @@ except ImportError:
 from parseutils import *
 from stats import *
 import xbmcplugin,xbmcgui,xbmcaddon
-__baseurl__ = 'http://video.idnes.cz'
+__baseurl__ = 'http://tv.idnes.cz/'
 _UserAgent_ = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
 addon = xbmcaddon.Addon('plugin.video.idnestv')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
@@ -22,6 +22,7 @@ icon = xbmc.translatePath( os.path.join( home, 'icon.png' ) )
 nexticon = xbmc.translatePath( os.path.join( home, 'nextpage.png' ) )
 fanart = xbmc.translatePath( os.path.join( home, 'fanart.jpg' ) )
 defaultprotocol = 'http:'
+
 
 #Nacteni informaci o doplnku
 __addon__      = xbmcaddon.Addon()
@@ -45,13 +46,105 @@ def normalize_url(url):
         else:
             return defaultprotocol + '//' + url
     return url
+    
+def settings(setting, value = None):
+    if value:
+        __settings__.setSetting(setting, value)
+    else:
+        return __settings__.getSetting(setting)
 
 def OBSAH():
-    addDir('Nejnovější epizody','http://video.idnes.cz/nejnovejsi.aspx',2,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Nejnovější")
-    addDir('Nejsledovanější','http://video.idnes.cz/nejsledovanejsi.aspx',2,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Nejsledovanější")
-    addDir('Výběr redakce','http://video.idnes.cz/',2,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Výběr redakce")
-    addDir('Videotémata','http://video.idnes.cz/',5,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Videotémata")  
-    addDir('Diskusní pořad Rozstřel','http://video.idnes.cz/rozstrel-cbk-/webtv.aspx?klic=527070',2,icon,1,"iDNES[COLOR blue]>[/COLOR]tv - Diskusní pořad Rozstřel")  
+
+    html = load(__baseurl__).encode('utf-8')
+    doc = bs4.BeautifulSoup(html)
+    
+    ## Parsuje hlavní nabídku stránky
+    MENU(doc)
+    
+    ## Nejnovější videa ze stránky se řadí pod hlavní nabídku
+    MAIN(doc)
+
+def MENU(doc):
+
+    url = ""
+    menu = doc.find("menu", id = "menu")
+    
+    menuitems = menu.findAll("li", recursive=False)
+
+    for item in menuitems:
+            vysk = item.findAll("li")
+            if len(vysk) > 0:
+                typ = 1
+                for subnew in vysk:
+                    url = url + subnew.find("a")['href'].encode('windows-1250','replace').strip() + "*" + subnew.find("a").getText().encode('windows-1250','replace').strip() + ";"
+            else:
+                typ = 2
+                url = __baseurl__ + item.find("a")['href']
+            if "zive.aspx" in url or "#" in url:
+                # PREHRAVANI ZIVE a HLEDANI SE MUSI JESTE DODELAT #
+                typ = 3
+                continue
+            title = "[B]" + item.find("a").getText().encode('windows-1250','replace').strip() + "[/B]"
+            desc = title
+            addDir(title,url,typ,icon,1,desc)
+
+def MAIN(doc):
+
+    items = doc.findAll("a", "art-link")
+    
+    for item in items:
+        try:
+            url = item['href']
+            title = item.find("h3").getText().encode('windows-1250','replace').strip()
+            # predpoklad je videolink
+            try:
+                desc = title + "[CR][CR]Vydáno: " + item.find("span","time").getText().encode('windows-1250','replace').strip() + "[CR]Délka: " + item.find("span","length").getText().encode('windows-1250','replace').strip()
+                typ = 4
+            except:
+            # ale kdyz neni popis a delka, jedna se pravdepodobne o porad
+                if __baseurl__ not in url:
+                    url = __baseurl__ + "porady.aspx" + url
+                desc = "Pořad: " + title
+                typ = 2
+            thumb = item.find("div","art-img")['style']
+            thumb = normalize_url(re.findall(r"//\S+.\w", thumb)[0])
+            addDir(title,url,typ,thumb,1,desc)
+        except:
+            pass
+
+
+def LIVE(url,page):
+    # MUSI SE DODELAT #
+    html = load(url).encode('utf-8')
+    doc = bs4.BeautifulSoup(html)
+    
+    items = doc.findAll("a", "art-link")
+
+    for item in items:
+        try:
+            url = item['href']
+            title = item.find("h3").getText().encode('windows-1250','replace').strip()
+            desc = "živě"
+            thumb = item.find("div","art-img")['style']
+            thumb = normalize_url(re.findall(r"//\S+.\w", thumb)[0])
+            addDir(title,url,4,thumb,1,desc)
+        except:
+            pass
+
+def NEWS(url,page):
+
+    subnews = url.split(';')
+
+    for item in subnews:
+        try:
+            data = item.split("*")
+            url = __baseurl__ + data[0]
+            title = data[1]
+            desc = title
+            addDir(title,url,2,icon,1,desc)
+        except:
+           pass
+
 
 def CATEGORIES(url,page):
 
@@ -73,28 +166,20 @@ def INDEX(url,page):
 
     html = load(url).encode('utf-8')
     doc = bs4.BeautifulSoup(html)
-    items = doc.findAll("div", "entry")
 
-    for item in items:
-            urlel = item.find("a")
-            url = urlel['href']
-            desc = "Délka " + urlel.span.span.getText().encode('windows-1250','replace')
-            title = urlel.getText().encode('windows-1250','replace').strip()
-            beg = title.find(':')+3
-            title = title[beg:]
-            title = title.strip()
-            video_name = title
-            thumb = normalize_url(urlel.find("img")['src'])
-            addDir(title,url,4,thumb,1,desc)
-
+    MAIN(doc)
+    
     try:
 
-	    item = doc.find("a", "ico-right")
-	    url = item['href']
+	    item = doc.find("div", "next-art")
+	    
+	    urlnext = item.find("a")['href']
+	    if __baseurl__ not in urlnext:
+	        urlnext = url + urlnext
 	    title = "[COLOR blue]Další strana >>>[/COLOR]"
 	    thumb = nexticon
 	    desc = "Přejít na další stránku"
-	    addDir(title,url,2,thumb,1,desc)
+	    addDir(title,urlnext,2,thumb,1,desc)
 	    
     except:
       	    pass
@@ -103,14 +188,12 @@ def VIDEOLINK(url,name):
 
     html = load(url).encode('utf-8')
     doc = bs4.BeautifulSoup(html)
-    xbmc.log(str(doc))
-    video = doc.findAll("meta", property="og:video:url")
-
+    video = doc.findAll("meta", property="og:url")
     video_name = name
 
     for item in video:
 		if "idvideo=" in item['content']:
-	    		xmlurl = item['content'].replace("http://video.idnes.cz/embed.aspx?idvideo=","http://servix.idnes.cz/media/video.aspx?idvideo=")
+	    		xmlurl = "http://servix.idnes.cz/media/video.aspx?" + re.findall(r"idvideo=\S+", item['content'])[0]
 			configxml = load(xmlurl).encode('utf-8')
     			configxml = bs4.BeautifulSoup(configxml)
 			thumb = normalize_url(configxml.find("imageprev").getText())
@@ -185,11 +268,6 @@ try:
 except:
         pass
 
-print "Mode: "+str(mode)
-print "URL: "+str(url)
-print "Name: "+str(name)
-print "Page: "+str(page)
-
 if mode==None or url==None or len(url)<1:
         print ""
         STATS("OBSAH", "Function")
@@ -201,6 +279,10 @@ elif mode==5:
         STATS("CATEGORIES", "Function") 
         CATEGORIES(url,page)
         
+elif mode==1:     
+        STATS("NEWS", "Function") 
+        NEWS(url,page)
+
 elif mode==2:
         print ""+url
         print ""+str(page) 
@@ -213,11 +295,7 @@ elif mode==4:
         VIDEOLINK(url, name)
      
 elif mode==3:
-        print ""+url
-        try:
-            STATS(name, "Item")
-            VIDEOLINK(url, name)
-        except IndexError:
-            INDEX(url, name)
+        STATS("LIVE", "Function") 
+        LIVE(url,page)
  
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
