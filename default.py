@@ -2,6 +2,7 @@
 import urllib2,urllib,re,os,sys,string,time,base64,datetime,gzip
 from urlparse import urlparse
 import aes
+import json
 import bs4
 import requests
 try:
@@ -80,9 +81,10 @@ def MENU(doc):
             else:
                 typ = 2
                 url = __baseurl__ + item.find("a")['href']
-            if "zive.aspx" in url or "#" in url:
-                # PREHRAVANI ZIVE a HLEDANI SE MUSI JESTE DODELAT #
+            if "zive.aspx" in url:
                 typ = 3
+            if "#" in url:
+                # HLEDANI SE MUSI JESTE DODELAT #
                 continue
             title = "[B]" + item.find("a").getText().encode('windows-1250','replace').strip() + "[/B]"
             desc = title
@@ -114,22 +116,21 @@ def MAIN(doc):
 
 
 def LIVE(url,page):
-    # MUSI SE DODELAT #
     html = load(url).encode('utf-8')
     doc = bs4.BeautifulSoup(html)
     
     items = doc.findAll("a", "art-link")
-
     for item in items:
-        try:
-            url = item['href']
-            title = item.find("h3").getText().encode('windows-1250','replace').strip()
-            desc = "živě"
-            thumb = item.find("div","art-img")['style']
-            thumb = normalize_url(re.findall(r"//\S+.\w", thumb)[0])
-            addDir(title,url,4,thumb,1,desc)
-        except:
-            pass
+        id_video = item['href'].split('=')[-1]
+        html = load('https://servix.idnes.cz/media/video.aspx?idvideo=%s&idrubriky=tv-zive&type=js' % id_video).encode('utf-8')
+        json_payload = re.search(r'VideoPlayer.data\("", (.*)\);', html).group(1)
+        jsondata = json.loads(json_payload)
+        url = jsondata['items'][1]['video'][0]['file']
+        name = jsondata['items'][1]['title']
+        thumb = jsondata['items'][1]['image']
+        desc = "živě"
+        addLink(name, name, url, normalize_url(thumb), desc)
+
 
 def NEWS(url,page):
 

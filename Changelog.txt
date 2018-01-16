@@ -1,4 +1,9 @@
-﻿2017-11-07:
+2017-01-16:
+
+* Release 2.0.1
+* Pridana sekce Zive (zatim bez podpory vyberu kvality)
+
+2017-11-07:
 
 * Release 2.0.0
 * zcela přepracovaný plugin na nově spuštěnou internetovou televizi tv.idnes.cz
